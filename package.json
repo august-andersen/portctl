@@ -15,12 +15,14 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build": "npm run build:client && npm run build:server",
     "start": "node dist/server/index.js",
+    "install:local": "bash install.sh",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write ."
   },
   "dependencies": {
     "express": "^4.21.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "tsx": "^4.19.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -36,7 +38,6 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "tailwindcss": "^3.4.0",
-    "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vite": "^5.4.0"
   }
