@@ -35,7 +35,10 @@ function extractSiteName(proc: PortProcess): string {
  * Group processes by PID to deduplicate same-process-multi-port.
  * Different PIDs stay as separate cards even if same binary name.
  */
-export function groupProcesses(processes: PortProcess[]): ProcessGroup[] {
+export function groupProcesses(
+  processes: PortProcess[],
+  customNames?: Record<string, string>,
+): ProcessGroup[] {
   // Group by PID — same process listening on multiple ports becomes one card
   const pidGroups = new Map<number, PortProcess[]>();
 
@@ -66,7 +69,9 @@ export function groupProcesses(processes: PortProcess[]): ProcessGroup[] {
       return p.uptime.length > longest.length ? p.uptime : longest;
     }, '');
 
-    const displayName = extractSiteName(primary);
+    // Check for user-assigned custom name (keyed by primary port)
+    const customName = customNames?.[`port:${ports[0]}`];
+    const displayName = customName || extractSiteName(primary);
 
     // Favicon for web/api processes
     const faviconUrl = (isWeb || primary.workingDirectory !== '/') && ports.length > 0

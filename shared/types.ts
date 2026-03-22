@@ -95,6 +95,8 @@ export interface PortctlConfig {
   cardOrder: number[];
   customRestartCommands: Record<string, string>;
   hiddenProcesses: string[];
+  /** Custom display names keyed by "port:<number>" */
+  customNames: Record<string, string>;
 }
 
 // ── API Types ──

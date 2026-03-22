@@ -35,6 +35,7 @@ const DEFAULT_CONFIG: PortctlConfig = {
   cardOrder: [],
   customRestartCommands: {},
   hiddenProcesses: [],
+  customNames: {},
 };
 
 export function ensureDirectories(): void {

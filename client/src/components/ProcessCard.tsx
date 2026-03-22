@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import type { ProcessGroup } from '@shared/types';
+import Popover from './Popover';
 
 interface ProcessCardProps {
   group: ProcessGroup;
@@ -14,6 +15,7 @@ interface ProcessCardProps {
   onReserve: (group: ProcessGroup) => void;
   onEditTags: (group: ProcessGroup) => void;
   onHide: (name: string) => void;
+  onRename: (name: string) => void;
   onDragStart: (key: string) => void;
   onDragOver: (e: React.DragEvent, key: string) => void;
   onDragEnd: () => void;
@@ -49,6 +51,7 @@ export default function ProcessCard({
   onReserve,
   onEditTags,
   onHide,
+  onRename,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -62,7 +65,14 @@ export default function ProcessCard({
   const [showMoveInput, setShowMoveInput] = useState(false);
   const [movePort, setMovePort] = useState('');
   const [faviconError, setFaviconError] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(group.displayName);
+
+  // Refs for popover anchors
+  const killBtnRef = useRef<HTMLButtonElement>(null);
+  const moveBtnRef = useRef<HTMLButtonElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const typeInfo = typeLabels[group.type] ?? typeLabels.system;
   const primaryPort = group.ports[0];
@@ -73,6 +83,23 @@ export default function ProcessCard({
     } else {
       onViewLogs(group.primaryPid);
     }
+  };
+
+  // Delayed single-click so double-click can cancel it
+  const handleNameClick = () => {
+    clickTimer.current = setTimeout(() => {
+      handleCardClick();
+    }, 200);
+  };
+
+  const handleNameDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (clickTimer.current) {
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+    }
+    setRenameValue(group.displayName);
+    setIsRenaming(true);
   };
 
   const handleMoveSubmit = () => {
@@ -132,7 +159,7 @@ export default function ProcessCard({
       </div>
 
       {/* Process name + favicon */}
-      <div className="mb-2 cursor-pointer" onClick={handleCardClick}>
+      <div className="mb-2">
         <div className="flex items-center gap-2">
           {group.faviconUrl && !faviconError && (
             <img
@@ -142,13 +169,40 @@ export default function ProcessCard({
               onError={() => setFaviconError(true)}
             />
           )}
-          <span
-            className="text-sm font-sans font-medium text-surface-200 truncate"
-            title={group.displayName}
-          >
-            {group.displayName}
-          </span>
-          <span className="text-[10px] text-surface-400 font-mono ml-auto">
+          {isRenaming ? (
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onRename(renameValue);
+                  setIsRenaming(false);
+                } else if (e.key === 'Escape') {
+                  setRenameValue(group.displayName);
+                  setIsRenaming(false);
+                }
+              }}
+              onBlur={() => {
+                if (renameValue !== group.displayName) {
+                  onRename(renameValue);
+                }
+                setIsRenaming(false);
+              }}
+              className="text-sm font-medium text-surface-200 bg-surface-700 border border-surface-600 rounded px-1.5 py-0.5 outline-none focus:border-indigo-500 w-full max-w-[180px]"
+              autoFocus
+            />
+          ) : (
+            <span
+              className="text-sm font-medium text-surface-200 truncate cursor-pointer hover:text-surface-100"
+              title={`${group.displayName} — double-click to rename`}
+              onClick={handleNameClick}
+              onDoubleClick={handleNameDoubleClick}
+            >
+              {group.displayName}
+            </span>
+          )}
+          <span className="text-[10px] text-surface-400 font-mono ml-auto shrink-0">
             PID {group.primaryPid}
           </span>
         </div>
@@ -182,79 +236,90 @@ export default function ProcessCard({
 
       {/* Actions */}
       <div className="flex items-center gap-1.5">
+        {/* Kill button + confirm popover */}
         {!group.isPortctl && !group.isSystem && (
-          <div className="relative">
+          <>
             <button
+              ref={killBtnRef}
               className="text-[11px] bg-red-500/10 text-red-400/80 hover:bg-red-500/20 hover:text-red-400 px-2 py-1.5 rounded-lg transition disabled:opacity-50 font-mono"
-              onClick={() => setShowKillConfirm(true)}
+              onClick={() => setShowKillConfirm(!showKillConfirm)}
               disabled={actionInProgress}
             >
               Kill
             </button>
-            {showKillConfirm && (
-              <div className="absolute bottom-full left-0 mb-1 bg-surface-900 border border-surface-700 rounded-lg p-3 shadow-2xl z-20 min-w-[180px]">
-                <p className="text-xs text-surface-200 mb-2 font-sans">Kill {group.displayName}?</p>
-                {group.isSystem && (
-                  <p className="text-xs text-amber-400 mb-2">System process — may affect system functionality.</p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    className="text-[11px] bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded font-mono"
-                    onClick={() => {
-                      onKill(group.primaryPid);
-                      setShowKillConfirm(false);
-                    }}
-                  >
-                    Kill
-                  </button>
-                  <button
-                    className="text-[11px] bg-surface-700 hover:bg-surface-600 text-surface-300 px-3 py-1 rounded font-mono"
-                    onClick={() => setShowKillConfirm(false)}
-                  >
-                    Cancel
-                  </button>
-                </div>
+            <Popover
+              open={showKillConfirm}
+              onClose={() => setShowKillConfirm(false)}
+              anchorRef={killBtnRef}
+              className="p-3 min-w-[180px]"
+            >
+              <p className="text-xs text-surface-200 mb-2">Kill {group.displayName}?</p>
+              {group.isSystem && (
+                <p className="text-xs text-amber-400 mb-2">System process — may affect system functionality.</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  className="text-[11px] bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded font-mono"
+                  onClick={() => {
+                    onKill(group.primaryPid);
+                    setShowKillConfirm(false);
+                  }}
+                >
+                  Kill
+                </button>
+                <button
+                  className="text-[11px] bg-surface-700 hover:bg-surface-600 text-surface-300 px-3 py-1 rounded font-mono"
+                  onClick={() => setShowKillConfirm(false)}
+                >
+                  Cancel
+                </button>
               </div>
-            )}
-          </div>
+            </Popover>
+          </>
         )}
 
+        {/* Switch Port button + input popover */}
         {!group.isPortctl && (
-          <div className="relative">
+          <>
             <button
+              ref={moveBtnRef}
               className="text-[11px] bg-surface-700/60 text-surface-400 hover:bg-surface-600/60 hover:text-surface-300 px-2 py-1.5 rounded-lg transition disabled:opacity-50 font-mono"
               onClick={() => setShowMoveInput(!showMoveInput)}
               disabled={actionInProgress}
             >
               Switch Port
             </button>
-            {showMoveInput && (
-              <div className="absolute bottom-full left-0 mb-1 bg-surface-900 border border-surface-700 rounded-lg p-3 shadow-2xl z-20">
-                <p className="text-[11px] text-surface-400 mb-2 font-sans">Move to port:</p>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={movePort}
-                    onChange={(e) => setMovePort(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleMoveSubmit()}
-                    className="w-24 bg-surface-800 border border-surface-700 text-surface-200 text-[11px] px-2 py-1 rounded font-mono"
-                    placeholder="8080"
-                    min={1}
-                    max={65535}
-                    autoFocus
-                  />
-                  <button
-                    className="text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded font-mono"
-                    onClick={handleMoveSubmit}
-                  >
-                    Move
-                  </button>
-                </div>
+            <Popover
+              open={showMoveInput}
+              onClose={() => setShowMoveInput(false)}
+              anchorRef={moveBtnRef}
+              className="p-3"
+            >
+              <p className="text-[11px] text-surface-400 mb-2">Move to port:</p>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={movePort}
+                  onChange={(e) => setMovePort(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleMoveSubmit()}
+                  className="w-24 bg-surface-800 border border-surface-700 text-surface-200 text-[11px] px-2 py-1 rounded font-mono"
+                  placeholder="8080"
+                  min={1}
+                  max={65535}
+                  autoFocus
+                />
+                <button
+                  className="text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded font-mono"
+                  onClick={handleMoveSubmit}
+                >
+                  Move
+                </button>
               </div>
-            )}
-          </div>
+            </Popover>
+          </>
         )}
 
+        {/* Pin button */}
         <button
           className={`text-[11px] px-2 py-1.5 rounded-lg transition font-mono ${
             isPinned
@@ -268,53 +333,60 @@ export default function ProcessCard({
         </button>
 
         {/* Three-dot menu */}
-        <div className="relative ml-auto">
-          <button
-            className="text-surface-500 hover:text-surface-300 text-sm px-1 font-mono"
-            onClick={() => setShowMenu(!showMenu)}
-          >
-            &middot;&middot;&middot;
-          </button>
-          {showMenu && (
-            <div
-              ref={menuRef}
-              className="absolute right-0 bottom-full mb-1 bg-surface-900 border border-surface-700 rounded-lg shadow-2xl z-30 min-w-[170px] py-1"
-            >
-              <MenuButton onClick={() => { onViewLogs(group.primaryPid); setShowMenu(false); }}>
-                View Logs
-              </MenuButton>
-              <MenuButton onClick={() => { onOpen(primaryPort); setShowMenu(false); }}>
-                Open in Browser
-              </MenuButton>
-              {!group.isPortctl && group.status === 'running' && (
-                <MenuButton onClick={() => { onSuspend(group.primaryPid); setShowMenu(false); }}>
-                  Suspend
-                </MenuButton>
-              )}
-              {group.status === 'suspended' && (
-                <MenuButton onClick={() => { onResume(group.primaryPid); setShowMenu(false); }}>
-                  Resume
-                </MenuButton>
-              )}
-              <MenuButton onClick={() => { onReserve(group); setShowMenu(false); }}>
-                Reserve Port
-              </MenuButton>
-              <MenuButton onClick={() => { onEditTags(group); setShowMenu(false); }}>
-                Edit Tags
-              </MenuButton>
-              <div className="border-t border-surface-700/50 my-1" />
-              <MenuButton onClick={() => { onHide(group.displayName); setShowMenu(false); }}>
-                Hide
-              </MenuButton>
-              <MenuButton onClick={() => { navigator.clipboard.writeText(String(group.primaryPid)); setShowMenu(false); }}>
-                Copy PID
-              </MenuButton>
-              <MenuButton onClick={() => { navigator.clipboard.writeText(group.processes[0].command); setShowMenu(false); }}>
-                Copy Command
-              </MenuButton>
-            </div>
+        <button
+          ref={menuBtnRef}
+          className="text-surface-500 hover:text-surface-300 text-sm px-1 font-mono ml-auto"
+          onClick={() => setShowMenu(!showMenu)}
+        >
+          &middot;&middot;&middot;
+        </button>
+        <Popover
+          open={showMenu}
+          onClose={() => setShowMenu(false)}
+          anchorRef={menuBtnRef}
+          align="right"
+          className="min-w-[170px] py-1"
+        >
+          <MenuButton onClick={() => { onViewLogs(group.primaryPid); setShowMenu(false); }}>
+            View Logs
+          </MenuButton>
+          <MenuButton onClick={() => { onOpen(primaryPort); setShowMenu(false); }}>
+            Open in Browser
+          </MenuButton>
+          {!group.isPortctl && group.status === 'running' && (
+            <MenuButton onClick={() => { onSuspend(group.primaryPid); setShowMenu(false); }}>
+              Suspend
+            </MenuButton>
           )}
-        </div>
+          {group.status === 'suspended' && (
+            <MenuButton onClick={() => { onResume(group.primaryPid); setShowMenu(false); }}>
+              Resume
+            </MenuButton>
+          )}
+          <MenuButton onClick={() => { onReserve(group); setShowMenu(false); }}>
+            Reserve Port
+          </MenuButton>
+          <MenuButton onClick={() => { onEditTags(group); setShowMenu(false); }}>
+            Edit Tags
+          </MenuButton>
+          <MenuButton onClick={() => {
+            setShowMenu(false);
+            setRenameValue(group.displayName);
+            setIsRenaming(true);
+          }}>
+            Rename
+          </MenuButton>
+          <div className="border-t border-surface-700/50 my-1" />
+          <MenuButton onClick={() => { onHide(group.displayName); setShowMenu(false); }}>
+            Hide
+          </MenuButton>
+          <MenuButton onClick={() => { navigator.clipboard.writeText(String(group.primaryPid)); setShowMenu(false); }}>
+            Copy PID
+          </MenuButton>
+          <MenuButton onClick={() => { navigator.clipboard.writeText(group.processes[0].command); setShowMenu(false); }}>
+            Copy Command
+          </MenuButton>
+        </Popover>
       </div>
     </div>
   );
@@ -367,7 +439,7 @@ export function EmptyPortCard({
         </div>
         <div className="w-2 h-2 rounded-full bg-neutral-700" />
       </div>
-      <div className="text-[11px] text-surface-600 mb-3 font-sans italic">
+      <div className="text-[11px] text-surface-600 mb-3 italic">
         {reservation ? `Reserved for ${reservation.label}` : 'No process running'}
       </div>
       <div className="flex items-center gap-2">

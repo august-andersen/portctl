@@ -35,6 +35,7 @@ export default function App() {
     updateTags,
     updateCardOrder,
     hideProcess,
+    renameProcess,
     unhideProcess,
   } = useProcesses();
 
@@ -65,7 +66,8 @@ export default function App() {
   }, [theme]);
 
   // Group and filter processes
-  const allGroups = useMemo(() => groupProcesses(processes), [processes]);
+  const customNames = config?.customNames;
+  const allGroups = useMemo(() => groupProcesses(processes, customNames), [processes, customNames]);
 
   const { pinnedGroups, mainGroups, hiddenGroups, systemGroups } = useMemo(() => {
     const pinnedPorts = new Set(config?.pinnedPorts ?? []);
@@ -232,6 +234,7 @@ export default function App() {
         onReserve={setReserveGroup}
         onEditTags={setTagEditGroup}
         onHide={handleHide}
+        onRename={(name) => renameProcess(`port:${group.ports[0]}`, name)}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}

@@ -274,6 +274,17 @@ export function useProcesses() {
     [refreshConfig]
   );
 
+  const renameProcess = useCallback(
+    async (portKey: string, name: string) => {
+      await apiFetch(`/api/config/custom-names/${portKey}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name }),
+      });
+      await refreshConfig();
+    },
+    [refreshConfig]
+  );
+
   return {
     processes,
     config,
@@ -301,5 +312,6 @@ export function useProcesses() {
     updateRestartCommand,
     hideProcess,
     unhideProcess,
+    renameProcess,
   };
 }

@@ -319,6 +319,28 @@ router.delete('/api/config/hidden-processes/:name', (req: Request, res: Response
   res.json(updated.hiddenProcesses);
 });
 
+// ── Custom names ──
+
+router.put('/api/config/custom-names/:key', (req: Request, res: Response) => {
+  const key = req.params.key;
+  const { name } = req.body as { name: string };
+  if (!name || !name.trim()) {
+    // Empty name = remove custom name
+    const updated = updateConfig((c) => {
+      const next = { ...c.customNames };
+      delete next[key];
+      return { ...c, customNames: next };
+    });
+    res.json(updated.customNames);
+    return;
+  }
+  const updated = updateConfig((c) => ({
+    ...c,
+    customNames: { ...c.customNames, [key]: name.trim() },
+  }));
+  res.json(updated.customNames);
+});
+
 // ── Favicon proxy ──
 
 router.get('/api/favicon/:port', async (req: Request, res: Response) => {
