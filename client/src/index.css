@@ -6,20 +6,32 @@
   --toast-duration: 4000ms;
 }
 
+/* Dark mode base */
+.dark {
+  background-color: #050506;
+  color: #d4d4d8;
+}
+
+/* Light mode base */
+.light-mode {
+  background-color: #fafafa;
+  color: #1c1c1e;
+}
+
 /* Custom scrollbar for dark mode */
 .dark ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 .dark ::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: #0c0c0e;
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: #475569;
-  border-radius: 4px;
+  background: #27272a;
+  border-radius: 3px;
 }
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: #3f3f46;
 }
 
 /* Monospace log viewer */
@@ -33,12 +45,12 @@
 
 /* Card drag styles */
 .dragging {
-  opacity: 0.5;
-  transform: scale(1.02);
+  opacity: 0.4;
+  transform: scale(1.03);
 }
 
 .drag-over {
-  border-color: #3b82f6 !important;
+  outline: 1px solid rgba(99, 102, 241, 0.5) !important;
 }
 
 /* Toast animation */
@@ -55,4 +67,19 @@
 
 .animate-slide-in {
   animation: slide-in 0.2s ease-out;
+}
+
+/* Favicon image */
+.favicon-img {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  object-fit: contain;
+}
+
+/* Section divider */
+.section-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }

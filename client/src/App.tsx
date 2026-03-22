@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
-import type { PortProcess, ViewMode, Theme } from '@shared/types';
+import type { PortProcess, ProcessGroup, ViewMode, Theme, Reservation } from '@shared/types';
 import { useProcesses } from './hooks/useProcesses';
+import { groupProcesses } from './utils/groupProcesses';
 import Header from './components/Header';
 import ProcessCard, { EmptyPortCard } from './components/ProcessCard';
 import TableView from './components/TableView';
@@ -33,109 +34,227 @@ export default function App() {
     togglePin,
     updateTags,
     updateCardOrder,
+    hideProcess,
+    unhideProcess,
   } = useProcesses();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('card');
   const [showSettings, setShowSettings] = useState(false);
   const [logViewPid, setLogViewPid] = useState<number | null>(null);
-  const [reserveProcess, setReserveProcess] = useState<PortProcess | null>(null);
-  const [tagEditProcess, setTagEditProcess] = useState<PortProcess | null>(null);
-  const dragItem = useRef<number | null>(null);
-  const dragOverItem = useRef<number | null>(null);
+  const [reserveGroup, setReserveGroup] = useState<ProcessGroup | null>(null);
+  const [tagEditGroup, setTagEditGroup] = useState<ProcessGroup | null>(null);
+  const [showSystem, setShowSystem] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
 
-  // Apply config defaults
+  // Drag state
+  const dragFrom = useRef<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+
   const theme: Theme = config?.settings.theme ?? 'dark';
   const cardClickBehavior = config?.settings.cardClickBehavior ?? 'openBrowser';
+  const hiddenNames = useMemo(() => new Set(config?.hiddenProcesses ?? []), [config?.hiddenProcesses]);
 
-  // Set view mode from config on first load
   React.useEffect(() => {
     if (config) setViewMode(config.settings.defaultView);
   }, [config?.settings.defaultView]);
 
-  // Apply theme
   React.useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.classList.toggle('light-mode', theme !== 'dark');
   }, [theme]);
 
-  // Filter processes
-  const filteredProcesses = useMemo(() => {
-    if (!searchQuery) return processes;
-    const q = searchQuery.toLowerCase();
-    return processes.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        String(p.port).includes(q) ||
-        p.tags.some((t) => t.toLowerCase().includes(q)) ||
-        p.type.toLowerCase().includes(q)
-    );
-  }, [processes, searchQuery]);
+  // Group and filter processes
+  const allGroups = useMemo(() => groupProcesses(processes), [processes]);
 
-  // Build ordered list of ports for card view (active + pinned)
-  const orderedPorts = useMemo(() => {
-    const activePorts = new Set(filteredProcesses.map((p) => p.port));
-    const pinnedPorts = config?.pinnedPorts ?? [];
-    const cardOrder = config?.cardOrder ?? [];
+  const { pinnedGroups, mainGroups, hiddenGroups, systemGroups } = useMemo(() => {
+    const pinnedPorts = new Set(config?.pinnedPorts ?? []);
+    const pinned: ProcessGroup[] = [];
+    const main: ProcessGroup[] = [];
+    const hidden: ProcessGroup[] = [];
+    const system: ProcessGroup[] = [];
 
-    // All ports that should be shown
-    const allPorts = new Set([...activePorts, ...pinnedPorts]);
+    for (const group of allGroups) {
+      // Hidden by user
+      if (hiddenNames.has(group.displayName)) {
+        hidden.push(group);
+        continue;
+      }
 
-    // Sort by card order, then by port number for unordered
-    const ordered = Array.from(allPorts).sort((a, b) => {
-      const aIdx = cardOrder.indexOf(a);
-      const bIdx = cardOrder.indexOf(b);
-      if (aIdx >= 0 && bIdx >= 0) return aIdx - bIdx;
-      if (aIdx >= 0) return -1;
-      if (bIdx >= 0) return 1;
-      return a - b;
-    });
+      // System processes
+      if (group.isSystem && !group.isPortctl) {
+        system.push(group);
+        continue;
+      }
 
-    return ordered;
-  }, [filteredProcesses, config?.pinnedPorts, config?.cardOrder]);
+      // Pinned — any group whose ports overlap with pinned ports
+      const isPinned = group.ports.some((p) => pinnedPorts.has(p));
+      if (isPinned) {
+        pinned.push(group);
+      } else {
+        main.push(group);
+      }
+    }
 
-  // Drag and drop handlers
-  const handleDragStart = useCallback((port: number) => {
-    dragItem.current = port;
+    return { pinnedGroups: pinned, mainGroups: main, hiddenGroups: hidden, systemGroups: system };
+  }, [allGroups, config?.pinnedPorts, hiddenNames]);
+
+  // Search filter
+  const filterGroup = useCallback(
+    (g: ProcessGroup) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        g.displayName.toLowerCase().includes(q) ||
+        g.ports.some((p) => String(p).includes(q)) ||
+        g.tags.some((t) => t.toLowerCase().includes(q)) ||
+        g.type.toLowerCase().includes(q)
+      );
+    },
+    [searchQuery]
+  );
+
+  const filteredPinned = useMemo(() => pinnedGroups.filter(filterGroup), [pinnedGroups, filterGroup]);
+  const filteredMain = useMemo(() => mainGroups.filter(filterGroup), [mainGroups, filterGroup]);
+  const filteredSystem = useMemo(
+    () => (showSystem ? systemGroups.filter(filterGroup) : []),
+    [showSystem, systemGroups, filterGroup]
+  );
+
+  // Card ordering: use config cardOrder to sort groups by their primary port
+  const sortGroups = useCallback(
+    (groups: ProcessGroup[]) => {
+      const cardOrder = config?.cardOrder ?? [];
+      return [...groups].sort((a, b) => {
+        const aIdx = cardOrder.indexOf(a.ports[0]);
+        const bIdx = cardOrder.indexOf(b.ports[0]);
+        if (aIdx >= 0 && bIdx >= 0) return aIdx - bIdx;
+        if (aIdx >= 0) return -1;
+        if (bIdx >= 0) return 1;
+        return a.ports[0] - b.ports[0];
+      });
+    },
+    [config?.cardOrder]
+  );
+
+  const orderedPinned = useMemo(() => sortGroups(filteredPinned), [filteredPinned, sortGroups]);
+  const orderedMain = useMemo(() => sortGroups(filteredMain), [filteredMain, sortGroups]);
+  const orderedSystem = useMemo(() => sortGroups(filteredSystem), [filteredSystem, sortGroups]);
+
+  // Pinned ports with no active process
+  const emptyPinnedPorts = useMemo(() => {
+    const activePorts = new Set(allGroups.flatMap((g) => g.ports));
+    return (config?.pinnedPorts ?? []).filter((p) => !activePorts.has(p));
+  }, [allGroups, config?.pinnedPorts]);
+
+  // ── Drag and drop: swap positions ──
+  const handleDragStart = useCallback((key: string) => {
+    dragFrom.current = key;
   }, []);
 
-  const handleDragOver = useCallback((port: number) => {
-    dragOverItem.current = port;
+  const handleDragOver = useCallback((_e: React.DragEvent, key: string) => {
+    setDragOverKey(key);
   }, []);
 
   const handleDragEnd = useCallback(() => {
-    if (dragItem.current === null || dragOverItem.current === null) return;
-    if (dragItem.current === dragOverItem.current) return;
-
-    const newOrder = [...orderedPorts];
-    const fromIdx = newOrder.indexOf(dragItem.current);
-    const toIdx = newOrder.indexOf(dragOverItem.current);
-
-    if (fromIdx >= 0 && toIdx >= 0) {
-      newOrder.splice(fromIdx, 1);
-      newOrder.splice(toIdx, 0, dragItem.current);
-      updateCardOrder(newOrder);
+    if (!dragFrom.current || !dragOverKey || dragFrom.current === dragOverKey) {
+      dragFrom.current = null;
+      setDragOverKey(null);
+      return;
     }
 
-    dragItem.current = null;
-    dragOverItem.current = null;
-  }, [orderedPorts, updateCardOrder]);
+    // Parse keys to port numbers
+    const fromPort = parseInt(dragFrom.current.replace('port-', '').replace('empty-', ''), 10);
+    const toPort = parseInt(dragOverKey.replace('port-', '').replace('empty-', ''), 10);
+
+    if (!isNaN(fromPort) && !isNaN(toPort)) {
+      // Build new order by swapping positions
+      const allPorts = [
+        ...orderedPinned.flatMap((g) => g.ports),
+        ...emptyPinnedPorts,
+        ...orderedMain.flatMap((g) => g.ports),
+        ...orderedSystem.flatMap((g) => g.ports),
+      ];
+
+      const fromIdx = allPorts.indexOf(fromPort);
+      const toIdx = allPorts.indexOf(toPort);
+
+      if (fromIdx >= 0 && toIdx >= 0) {
+        // Swap
+        const newOrder = [...allPorts];
+        newOrder[fromIdx] = toPort;
+        newOrder[toIdx] = fromPort;
+        updateCardOrder(newOrder);
+      }
+    }
+
+    dragFrom.current = null;
+    setDragOverKey(null);
+  }, [dragOverKey, orderedPinned, orderedMain, orderedSystem, emptyPinnedPorts, updateCardOrder]);
 
   const handleThemeToggle = useCallback(() => {
     updateSettings({ theme: theme === 'dark' ? 'light' : 'dark' });
   }, [theme, updateSettings]);
 
+  const handleHide = useCallback(
+    (name: string) => {
+      hideProcess(name);
+    },
+    [hideProcess]
+  );
+
+  const handleUnhide = useCallback(
+    (name: string) => {
+      unhideProcess(name);
+    },
+    [unhideProcess]
+  );
+
+  // Find process for log viewer
   const logViewProcess = logViewPid !== null ? processes.find((p) => p.pid === logViewPid) : null;
+
+  // Card renderer
+  const renderGroupCard = (group: ProcessGroup, section: string) => {
+    const key = `port-${group.ports[0]}`;
+    const isPinned = group.ports.some((p) => config?.pinnedPorts.includes(p));
+    return (
+      <ProcessCard
+        key={key}
+        group={group}
+        isPinned={isPinned}
+        onKill={killProc}
+        onSuspend={suspendProc}
+        onResume={resumeProc}
+        onMovePort={moveProc}
+        onOpen={openProc}
+        onTogglePin={togglePin}
+        onViewLogs={setLogViewPid}
+        onReserve={setReserveGroup}
+        onEditTags={setTagEditGroup}
+        onHide={handleHide}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        dragKey={key}
+        actionInProgress={isActionInProgress(group.primaryPid)}
+        cardClickBehavior={cardClickBehavior}
+        compact={section === 'system'}
+      />
+    );
+  };
 
   if (loading && processes.length === 0) {
     return (
       <div className="dark bg-surface-950 min-h-screen flex items-center justify-center">
-        <div className="text-surface-200/50">Loading portctl...</div>
+        <div className="text-surface-500 font-sans">Loading portctl...</div>
       </div>
     );
   }
 
+  const totalVisible = orderedPinned.length + orderedMain.length + orderedSystem.length + emptyPinnedPorts.length;
+
   return (
-    <div className={`${theme === 'dark' ? 'dark' : ''} bg-surface-950 min-h-screen text-surface-200`}>
+    <div className={`${theme === 'dark' ? 'dark' : ''} ${theme !== 'dark' ? 'light-mode' : ''} bg-surface-950 min-h-screen text-surface-200`}>
       <Header
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -144,64 +263,120 @@ export default function App() {
         theme={theme}
         onThemeToggle={handleThemeToggle}
         onOpenSettings={() => setShowSettings(true)}
+        showSystem={showSystem}
+        onToggleSystem={() => setShowSystem(!showSystem)}
+        hiddenCount={hiddenGroups.length}
+        showHidden={showHidden}
+        onToggleHidden={() => setShowHidden(!showHidden)}
       />
 
-      {/* Discovery failure banner */}
       {discoveryFailures >= 3 && (
-        <div className="bg-red-600/20 text-red-400 text-sm px-6 py-2 text-center">
+        <div className="bg-red-600/10 text-red-400/80 text-xs px-6 py-2 text-center font-mono border-b border-red-600/10">
           Process discovery is failing. Check if lsof is available.
         </div>
       )}
 
-      <main className="p-6">
+      <main className="p-6 max-w-[1800px] mx-auto">
         {viewMode === 'card' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {orderedPorts.map((port) => {
-              const proc = filteredProcesses.find((p) => p.port === port);
-              const isPinned = config?.pinnedPorts.includes(port) ?? false;
+          <>
+            {/* Pinned section */}
+            {(orderedPinned.length > 0 || emptyPinnedPorts.length > 0) && (
+              <section className="mb-8">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="section-label text-surface-500">Pinned</span>
+                  <div className="flex-1 h-px bg-surface-700/30" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {orderedPinned.map((g) => renderGroupCard(g, 'pinned'))}
+                  {emptyPinnedPorts.map((port) => {
+                    const reservation = config?.reservations.find((r) => r.port === port);
+                    const key = `empty-${port}`;
+                    return (
+                      <EmptyPortCard
+                        key={key}
+                        port={port}
+                        reservation={reservation ? { label: reservation.label, restartTemplate: reservation.restartTemplate } : undefined}
+                        onUnpin={togglePin}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragEnd={handleDragEnd}
+                        dragKey={key}
+                      />
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
-              if (!proc) {
-                // Empty pinned card
-                const reservation = config?.reservations.find((r) => r.port === port);
-                return (
-                  <EmptyPortCard
-                    key={port}
-                    port={port}
-                    reservation={reservation ? { label: reservation.label, restartTemplate: reservation.restartTemplate } : undefined}
-                    onUnpin={togglePin}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDragEnd={handleDragEnd}
-                  />
-                );
-              }
+            {/* Main processes */}
+            {orderedMain.length > 0 && (
+              <section className="mb-8">
+                {orderedPinned.length > 0 && (
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="section-label text-surface-500">Processes</span>
+                    <div className="flex-1 h-px bg-surface-700/30" />
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {orderedMain.map((g) => renderGroupCard(g, 'main'))}
+                </div>
+              </section>
+            )}
 
-              return (
-                <ProcessCard
-                  key={proc.pid}
-                  process={proc}
-                  isPinned={isPinned}
-                  onKill={killProc}
-                  onSuspend={suspendProc}
-                  onResume={resumeProc}
-                  onMovePort={moveProc}
-                  onOpen={openProc}
-                  onTogglePin={togglePin}
-                  onViewLogs={setLogViewPid}
-                  onReserve={setReserveProcess}
-                  onEditTags={setTagEditProcess}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDragEnd={handleDragEnd}
-                  actionInProgress={isActionInProgress(proc.pid)}
-                  cardClickBehavior={cardClickBehavior}
-                />
-              );
-            })}
-          </div>
+            {/* System processes (toggled) */}
+            {orderedSystem.length > 0 && (
+              <section className="mb-8">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="section-label text-surface-500">System</span>
+                  <span className="text-[10px] text-surface-600 font-mono">{systemGroups.length}</span>
+                  <div className="flex-1 h-px bg-surface-700/30" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {orderedSystem.map((g) => renderGroupCard(g, 'system'))}
+                </div>
+              </section>
+            )}
+
+            {/* Hidden section (toggled) */}
+            {showHidden && hiddenGroups.length > 0 && (
+              <section className="mb-8">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="section-label text-surface-500">Hidden</span>
+                  <div className="flex-1 h-px bg-surface-700/30" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {hiddenGroups.map((g) => (
+                    <div key={g.displayName} className="bg-surface-800/30 border border-surface-700/30 rounded-xl p-4 opacity-60">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-surface-500">
+                            {g.ports.map((p) => `:${p}`).join(' ')}
+                          </span>
+                          <span className="text-sm font-sans text-surface-400">{g.displayName}</span>
+                        </div>
+                        <button
+                          className="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono"
+                          onClick={() => handleUnhide(g.displayName)}
+                        >
+                          Unhide
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {totalVisible === 0 && (
+              <div className="text-center text-surface-600 py-20">
+                <p className="text-lg mb-2 font-sans">No processes found</p>
+                <p className="text-xs font-mono">Start a dev server and it will appear here automatically.</p>
+              </div>
+            )}
+          </>
         ) : (
           <TableView
-            processes={filteredProcesses}
+            processes={processes.filter((p) => !p.isSystem || showSystem)}
             onKill={killProc}
             onSuspend={suspendProc}
             onResume={resumeProc}
@@ -210,19 +385,10 @@ export default function App() {
             onViewLogs={setLogViewPid}
           />
         )}
-
-        {filteredProcesses.length === 0 && orderedPorts.length === 0 && (
-          <div className="text-center text-surface-200/30 py-20">
-            <p className="text-xl mb-2">No processes found</p>
-            <p className="text-sm">Start a dev server and it will appear here automatically.</p>
-          </div>
-        )}
       </main>
 
-      {/* Toasts */}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
 
-      {/* Settings Modal */}
       {showSettings && config && (
         <Settings
           config={config}
@@ -236,7 +402,6 @@ export default function App() {
         />
       )}
 
-      {/* Log Viewer */}
       {logViewProcess && (
         <LogViewer
           process={logViewProcess}
@@ -245,21 +410,19 @@ export default function App() {
         />
       )}
 
-      {/* Reserve Modal */}
-      {reserveProcess && (
+      {reserveGroup && (
         <ReserveModal
-          process={reserveProcess}
+          process={reserveGroup.processes[0]}
           onReserve={addReservation}
-          onClose={() => setReserveProcess(null)}
+          onClose={() => setReserveGroup(null)}
         />
       )}
 
-      {/* Tag Editor */}
-      {tagEditProcess && (
+      {tagEditGroup && (
         <TagEditor
-          process={tagEditProcess}
+          process={tagEditGroup.processes[0]}
           onSave={updateTags}
-          onClose={() => setTagEditProcess(null)}
+          onClose={() => setTagEditGroup(null)}
         />
       )}
     </div>

@@ -253,6 +253,27 @@ export function useProcesses() {
     [refreshConfig]
   );
 
+  const hideProcess = useCallback(
+    async (name: string) => {
+      await apiFetch('/api/config/hidden-processes', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      await refreshConfig();
+    },
+    [refreshConfig]
+  );
+
+  const unhideProcess = useCallback(
+    async (name: string) => {
+      await apiFetch(`/api/config/hidden-processes/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+      });
+      await refreshConfig();
+    },
+    [refreshConfig]
+  );
+
   return {
     processes,
     config,
@@ -278,5 +299,7 @@ export function useProcesses() {
     updateTags,
     updateCardOrder,
     updateRestartCommand,
+    hideProcess,
+    unhideProcess,
   };
 }

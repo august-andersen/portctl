@@ -295,6 +295,83 @@ router.put('/api/config/restart-command/:key', (req: Request, res: Response) => 
   res.json({ success: true });
 });
 
+// ── Hidden processes ──
+
+router.post('/api/config/hidden-processes', (req: Request, res: Response) => {
+  const { name } = req.body as { name: string };
+  if (!name) {
+    res.status(400).json({ error: 'Invalid process name' });
+    return;
+  }
+  const updated = updateConfig((c) => ({
+    ...c,
+    hiddenProcesses: [...new Set([...c.hiddenProcesses, name])],
+  }));
+  res.json(updated.hiddenProcesses);
+});
+
+router.delete('/api/config/hidden-processes/:name', (req: Request, res: Response) => {
+  const name = decodeURIComponent(req.params.name);
+  const updated = updateConfig((c) => ({
+    ...c,
+    hiddenProcesses: c.hiddenProcesses.filter((n) => n !== name),
+  }));
+  res.json(updated.hiddenProcesses);
+});
+
+// ── Favicon proxy ──
+
+router.get('/api/favicon/:port', async (req: Request, res: Response) => {
+  const port = parseInt(req.params.port, 10);
+  if (isNaN(port)) {
+    res.status(400).end();
+    return;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
+
+    const response = await fetch(`http://localhost:${port}/favicon.ico`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (response.ok) {
+      const contentType = response.headers.get('content-type') ?? 'image/x-icon';
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.set('Content-Type', contentType);
+      res.set('Cache-Control', 'public, max-age=300');
+      res.send(buffer);
+      return;
+    }
+  } catch {
+    // Try /favicon.png as fallback
+    try {
+      const controller2 = new AbortController();
+      const timeout2 = setTimeout(() => controller2.abort(), 2000);
+
+      const response2 = await fetch(`http://localhost:${port}/favicon.png`, {
+        signal: controller2.signal,
+      });
+      clearTimeout(timeout2);
+
+      if (response2.ok) {
+        const contentType = response2.headers.get('content-type') ?? 'image/png';
+        const buffer = Buffer.from(await response2.arrayBuffer());
+        res.set('Content-Type', contentType);
+        res.set('Cache-Control', 'public, max-age=300');
+        res.send(buffer);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  res.status(404).end();
+});
+
 // ── Status & Toasts ──
 
 router.get('/api/status', (_req: Request, res: Response) => {

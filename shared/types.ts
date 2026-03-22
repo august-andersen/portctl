@@ -23,6 +23,39 @@ export interface PortProcess {
   hasLogs: boolean;
 }
 
+// ── Process Group (frontend-only, for deduplication) ──
+
+export interface ProcessGroup {
+  /** Display name — extracted project/site name for web, otherwise process name */
+  displayName: string;
+  /** All ports this process group is listening on */
+  ports: number[];
+  /** Primary PID (lowest, used for actions) */
+  primaryPid: number;
+  /** All underlying processes */
+  processes: PortProcess[];
+  /** Aggregate CPU across all processes */
+  totalCpu: number;
+  /** Aggregate memory across all processes */
+  totalMemoryMB: number;
+  /** Process type from the primary */
+  type: ProcessType;
+  /** Status from the primary */
+  status: ProcessStatus;
+  /** Is this a system process group */
+  isSystem: boolean;
+  /** Is this the portctl daemon */
+  isPortctl: boolean;
+  /** Combined tags from all ports */
+  tags: string[];
+  /** Uptime of the longest-running process */
+  uptime: string;
+  /** Favicon URL for web processes */
+  faviconUrl: string | null;
+  /** Does any process in this group have logs */
+  hasLogs: boolean;
+}
+
 // ── Config Types ──
 
 export type MatcherType = 'command_contains' | 'process_name' | 'working_directory' | 'regex';
@@ -61,6 +94,7 @@ export interface PortctlConfig {
   tags: Record<string, string[]>;
   cardOrder: number[];
   customRestartCommands: Record<string, string>;
+  hiddenProcesses: string[];
 }
 
 // ── API Types ──

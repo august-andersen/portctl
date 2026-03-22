@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
-import type { PortProcess } from '@shared/types';
+import type { ProcessGroup } from '@shared/types';
 
 interface ProcessCardProps {
-  process: PortProcess;
+  group: ProcessGroup;
   isPinned: boolean;
   onKill: (pid: number) => void;
   onSuspend: (pid: number) => void;
@@ -11,30 +11,33 @@ interface ProcessCardProps {
   onOpen: (port: number) => void;
   onTogglePin: (port: number) => void;
   onViewLogs: (pid: number) => void;
-  onReserve: (process: PortProcess) => void;
-  onEditTags: (process: PortProcess) => void;
-  onDragStart: (port: number) => void;
-  onDragOver: (port: number) => void;
+  onReserve: (group: ProcessGroup) => void;
+  onEditTags: (group: ProcessGroup) => void;
+  onHide: (name: string) => void;
+  onDragStart: (key: string) => void;
+  onDragOver: (e: React.DragEvent, key: string) => void;
   onDragEnd: () => void;
+  dragKey: string;
   actionInProgress: boolean;
   cardClickBehavior: string;
+  compact?: boolean;
 }
 
 const statusColors: Record<string, string> = {
   running: 'bg-emerald-500',
-  suspended: 'bg-yellow-500',
-  stopped: 'bg-gray-500',
+  suspended: 'bg-amber-500',
+  stopped: 'bg-neutral-600',
 };
 
 const typeLabels: Record<string, { label: string; color: string }> = {
-  web: { label: 'Web', color: 'bg-blue-500/20 text-blue-400' },
-  api: { label: 'API', color: 'bg-purple-500/20 text-purple-400' },
-  database: { label: 'DB', color: 'bg-orange-500/20 text-orange-400' },
-  system: { label: 'System', color: 'bg-gray-500/20 text-gray-400' },
+  web: { label: 'Web', color: 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20' },
+  api: { label: 'API', color: 'bg-violet-500/15 text-violet-400 border border-violet-500/20' },
+  database: { label: 'DB', color: 'bg-amber-500/15 text-amber-400 border border-amber-500/20' },
+  system: { label: 'Sys', color: 'bg-neutral-500/15 text-neutral-400 border border-neutral-500/20' },
 };
 
 export default function ProcessCard({
-  process: proc,
+  group,
   isPinned,
   onKill,
   onSuspend,
@@ -45,33 +48,37 @@ export default function ProcessCard({
   onViewLogs,
   onReserve,
   onEditTags,
+  onHide,
   onDragStart,
   onDragOver,
   onDragEnd,
+  dragKey,
   actionInProgress,
   cardClickBehavior,
+  compact,
 }: ProcessCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showKillConfirm, setShowKillConfirm] = useState(false);
   const [showMoveInput, setShowMoveInput] = useState(false);
   const [movePort, setMovePort] = useState('');
+  const [faviconError, setFaviconError] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const killRef = useRef<HTMLDivElement>(null);
 
-  const typeInfo = typeLabels[proc.type] ?? typeLabels.system;
+  const typeInfo = typeLabels[group.type] ?? typeLabels.system;
+  const primaryPort = group.ports[0];
 
   const handleCardClick = () => {
-    if (cardClickBehavior === 'openBrowser' && (proc.type === 'web' || proc.type === 'api')) {
-      onOpen(proc.port);
+    if (cardClickBehavior === 'openBrowser' && (group.type === 'web' || group.type === 'api')) {
+      onOpen(primaryPort);
     } else {
-      onViewLogs(proc.pid);
+      onViewLogs(group.primaryPid);
     }
   };
 
   const handleMoveSubmit = () => {
     const port = parseInt(movePort, 10);
     if (port >= 1 && port <= 65535) {
-      onMovePort(proc.pid, port);
+      onMovePort(group.primaryPid, port);
       setShowMoveInput(false);
       setMovePort('');
     }
@@ -80,64 +87,92 @@ export default function ProcessCard({
   return (
     <div
       draggable
-      onDragStart={() => onDragStart(proc.port)}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        onDragStart(dragKey);
+      }}
       onDragOver={(e) => {
         e.preventDefault();
-        onDragOver(proc.port);
+        e.dataTransfer.dropEffect = 'move';
+        onDragOver(e, dragKey);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
       }}
       onDragEnd={onDragEnd}
-      className="bg-surface-800 dark:bg-surface-800 light:bg-white border border-surface-700 dark:border-surface-700 rounded-xl p-4 hover:border-surface-200/30 transition-all relative group cursor-grab active:cursor-grabbing"
+      className={`
+        bg-surface-800 dark:bg-surface-800 border border-surface-700/60 rounded-xl
+        hover:border-surface-500/30 transition-all relative group
+        cursor-grab active:cursor-grabbing
+        ${compact ? 'p-3' : 'p-4'}
+      `}
     >
-      {/* Header row */}
+      {/* Header row: ports + type + status */}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-surface-200/40 cursor-grab">:::</span>
-          <span className="text-lg font-mono font-bold text-blue-400">:{proc.port}</span>
-          <span className={`${typeInfo.color} text-xs px-1.5 py-0.5 rounded font-medium`}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-surface-400/50 cursor-grab font-mono text-xs select-none">:::</span>
+          {group.ports.map((port) => (
+            <span
+              key={port}
+              className="text-sm font-mono font-semibold text-indigo-400 cursor-pointer hover:text-indigo-300"
+              onClick={() => onOpen(port)}
+              title={`Open localhost:${port}`}
+            >
+              :{port}
+            </span>
+          ))}
+          <span className={`${typeInfo.color} text-[10px] px-1.5 py-0.5 rounded font-mono`}>
             {typeInfo.label}
           </span>
-          {proc.isPortctl && (
-            <span className="bg-blue-500/20 text-blue-300 text-xs px-1.5 py-0.5 rounded">portctl</span>
-          )}
-          {proc.isSystem && (
-            <span className="bg-yellow-500/20 text-yellow-300 text-xs px-1.5 py-0.5 rounded">System</span>
-          )}
-          {isPinned && (
-            <span className="text-yellow-400 text-xs" title="Pinned">&#128204;</span>
+          {group.isPortctl && (
+            <span className="bg-indigo-500/15 text-indigo-300 text-[10px] px-1.5 py-0.5 rounded border border-indigo-500/20 font-mono">portctl</span>
           )}
         </div>
-        <div className={`w-2.5 h-2.5 rounded-full ${statusColors[proc.status]}`} title={proc.status} />
+        <div className={`w-2 h-2 rounded-full ${statusColors[group.status]} shrink-0`} title={group.status} />
       </div>
 
-      {/* Process info */}
+      {/* Process name + favicon */}
       <div className="mb-2 cursor-pointer" onClick={handleCardClick}>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-surface-200 truncate max-w-[200px]" title={proc.name}>
-            {proc.name}
+        <div className="flex items-center gap-2">
+          {group.faviconUrl && !faviconError && (
+            <img
+              src={group.faviconUrl}
+              alt=""
+              className="favicon-img"
+              onError={() => setFaviconError(true)}
+            />
+          )}
+          <span
+            className="text-sm font-sans font-medium text-surface-200 truncate"
+            title={group.displayName}
+          >
+            {group.displayName}
           </span>
-          <span className="text-xs text-surface-200/50 font-mono">PID {proc.pid}</span>
+          <span className="text-[10px] text-surface-400 font-mono ml-auto">
+            PID {group.primaryPid}
+          </span>
         </div>
-        <div className="text-xs text-surface-200/40 mt-0.5">
-          {proc.uptime && <span>up {proc.uptime}</span>}
-          {proc.workerCount > 1 && (
-            <span className="ml-2 text-surface-200/30">{proc.workerCount} workers</span>
+        <div className="text-[11px] text-surface-500 mt-0.5 font-mono">
+          {group.uptime && <span>up {group.uptime}</span>}
+          {group.processes.length > 1 && (
+            <span className="ml-2 text-surface-600">{group.processes.length} instances</span>
           )}
         </div>
       </div>
 
       {/* Metrics */}
-      <div className="flex gap-4 text-xs text-surface-200/50 mb-3">
-        <span>CPU: {proc.cpuPercent.toFixed(1)}%</span>
-        <span>MEM: {proc.memoryMB}MB</span>
+      <div className="flex gap-4 text-[11px] text-surface-500 mb-3 font-mono">
+        <span>CPU {group.totalCpu.toFixed(1)}%</span>
+        <span>MEM {group.totalMemoryMB}MB</span>
       </div>
 
       {/* Tags */}
-      {proc.tags.length > 0 && (
+      {group.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-3">
-          {proc.tags.map((tag) => (
+          {group.tags.map((tag) => (
             <span
               key={tag}
-              className="bg-surface-700 text-surface-200/70 text-xs px-2 py-0.5 rounded-full"
+              className="bg-surface-700/60 text-surface-400 text-[10px] px-2 py-0.5 rounded-full font-mono"
             >
               {tag}
             </span>
@@ -146,34 +181,34 @@ export default function ProcessCard({
       )}
 
       {/* Actions */}
-      <div className="flex items-center gap-2">
-        {!proc.isPortctl && !proc.isSystem && (
+      <div className="flex items-center gap-1.5">
+        {!group.isPortctl && !group.isSystem && (
           <div className="relative">
             <button
-              className="text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 px-2.5 py-1.5 rounded-lg transition disabled:opacity-50"
+              className="text-[11px] bg-red-500/10 text-red-400/80 hover:bg-red-500/20 hover:text-red-400 px-2 py-1.5 rounded-lg transition disabled:opacity-50 font-mono"
               onClick={() => setShowKillConfirm(true)}
               disabled={actionInProgress}
             >
               Kill
             </button>
             {showKillConfirm && (
-              <div ref={killRef} className="absolute bottom-full left-0 mb-1 bg-surface-900 border border-surface-700 rounded-lg p-3 shadow-xl z-20 min-w-[180px]">
-                <p className="text-xs text-surface-200 mb-2">Kill {proc.name}?</p>
-                {proc.isSystem && (
-                  <p className="text-xs text-yellow-400 mb-2">This is a system process. Killing it may affect system functionality.</p>
+              <div className="absolute bottom-full left-0 mb-1 bg-surface-900 border border-surface-700 rounded-lg p-3 shadow-2xl z-20 min-w-[180px]">
+                <p className="text-xs text-surface-200 mb-2 font-sans">Kill {group.displayName}?</p>
+                {group.isSystem && (
+                  <p className="text-xs text-amber-400 mb-2">System process — may affect system functionality.</p>
                 )}
                 <div className="flex gap-2">
                   <button
-                    className="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
+                    className="text-[11px] bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded font-mono"
                     onClick={() => {
-                      onKill(proc.pid);
+                      onKill(group.primaryPid);
                       setShowKillConfirm(false);
                     }}
                   >
                     Kill
                   </button>
                   <button
-                    className="text-xs bg-surface-700 hover:bg-surface-200/20 text-surface-200 px-3 py-1 rounded"
+                    className="text-[11px] bg-surface-700 hover:bg-surface-600 text-surface-300 px-3 py-1 rounded font-mono"
                     onClick={() => setShowKillConfirm(false)}
                   >
                     Cancel
@@ -184,41 +219,35 @@ export default function ProcessCard({
           </div>
         )}
 
-        {!proc.isPortctl && (
+        {!group.isPortctl && (
           <div className="relative">
             <button
-              className="text-xs bg-surface-700 text-surface-200/70 hover:bg-surface-200/20 px-2.5 py-1.5 rounded-lg transition disabled:opacity-50"
+              className="text-[11px] bg-surface-700/60 text-surface-400 hover:bg-surface-600/60 hover:text-surface-300 px-2 py-1.5 rounded-lg transition disabled:opacity-50 font-mono"
               onClick={() => setShowMoveInput(!showMoveInput)}
               disabled={actionInProgress}
             >
               Switch Port
             </button>
             {showMoveInput && (
-              <div className="absolute bottom-full left-0 mb-1 bg-surface-900 border border-surface-700 rounded-lg p-3 shadow-xl z-20">
-                <p className="text-xs text-surface-200/70 mb-2">Move to port:</p>
+              <div className="absolute bottom-full left-0 mb-1 bg-surface-900 border border-surface-700 rounded-lg p-3 shadow-2xl z-20">
+                <p className="text-[11px] text-surface-400 mb-2 font-sans">Move to port:</p>
                 <div className="flex gap-2">
                   <input
                     type="number"
                     value={movePort}
                     onChange={(e) => setMovePort(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleMoveSubmit()}
-                    className="w-24 bg-surface-800 border border-surface-700 text-surface-200 text-xs px-2 py-1 rounded"
+                    className="w-24 bg-surface-800 border border-surface-700 text-surface-200 text-[11px] px-2 py-1 rounded font-mono"
                     placeholder="8080"
                     min={1}
                     max={65535}
                     autoFocus
                   />
                   <button
-                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
+                    className="text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded font-mono"
                     onClick={handleMoveSubmit}
                   >
                     Move
-                  </button>
-                  <button
-                    className="text-xs bg-surface-700 text-surface-200 px-2 py-1 rounded"
-                    onClick={() => setShowMoveInput(false)}
-                  >
-                    &times;
                   </button>
                 </div>
               </div>
@@ -227,12 +256,13 @@ export default function ProcessCard({
         )}
 
         <button
-          className={`text-xs px-2.5 py-1.5 rounded-lg transition ${
+          className={`text-[11px] px-2 py-1.5 rounded-lg transition font-mono ${
             isPinned
-              ? 'bg-yellow-500/20 text-yellow-400'
-              : 'bg-surface-700 text-surface-200/70 hover:bg-surface-200/20'
+              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
+              : 'bg-surface-700/60 text-surface-400 hover:bg-surface-600/60'
           }`}
-          onClick={() => onTogglePin(proc.port)}
+          onClick={() => onTogglePin(primaryPort)}
+          title={isPinned ? 'Unpin' : 'Pin'}
         >
           {isPinned ? 'Unpin' : 'Pin'}
         </button>
@@ -240,43 +270,46 @@ export default function ProcessCard({
         {/* Three-dot menu */}
         <div className="relative ml-auto">
           <button
-            className="text-surface-200/50 hover:text-surface-200 text-lg px-1"
+            className="text-surface-500 hover:text-surface-300 text-sm px-1 font-mono"
             onClick={() => setShowMenu(!showMenu)}
           >
-            &#x22EF;
+            &middot;&middot;&middot;
           </button>
           {showMenu && (
             <div
               ref={menuRef}
-              className="absolute right-0 bottom-full mb-1 bg-surface-900 border border-surface-700 rounded-lg shadow-xl z-30 min-w-[180px] py-1"
+              className="absolute right-0 bottom-full mb-1 bg-surface-900 border border-surface-700 rounded-lg shadow-2xl z-30 min-w-[170px] py-1"
             >
-              <MenuButton onClick={() => { onViewLogs(proc.pid); setShowMenu(false); }}>
+              <MenuButton onClick={() => { onViewLogs(group.primaryPid); setShowMenu(false); }}>
                 View Logs
               </MenuButton>
-              <MenuButton onClick={() => { onOpen(proc.port); setShowMenu(false); }}>
+              <MenuButton onClick={() => { onOpen(primaryPort); setShowMenu(false); }}>
                 Open in Browser
               </MenuButton>
-              {!proc.isPortctl && proc.status === 'running' && (
-                <MenuButton onClick={() => { onSuspend(proc.pid); setShowMenu(false); }}>
+              {!group.isPortctl && group.status === 'running' && (
+                <MenuButton onClick={() => { onSuspend(group.primaryPid); setShowMenu(false); }}>
                   Suspend
                 </MenuButton>
               )}
-              {proc.status === 'suspended' && (
-                <MenuButton onClick={() => { onResume(proc.pid); setShowMenu(false); }}>
+              {group.status === 'suspended' && (
+                <MenuButton onClick={() => { onResume(group.primaryPid); setShowMenu(false); }}>
                   Resume
                 </MenuButton>
               )}
-              <MenuButton onClick={() => { onReserve(proc); setShowMenu(false); }}>
+              <MenuButton onClick={() => { onReserve(group); setShowMenu(false); }}>
                 Reserve Port
               </MenuButton>
-              <MenuButton onClick={() => { onEditTags(proc); setShowMenu(false); }}>
+              <MenuButton onClick={() => { onEditTags(group); setShowMenu(false); }}>
                 Edit Tags
               </MenuButton>
-              <div className="border-t border-surface-700 my-1" />
-              <MenuButton onClick={() => { navigator.clipboard.writeText(String(proc.pid)); setShowMenu(false); }}>
+              <div className="border-t border-surface-700/50 my-1" />
+              <MenuButton onClick={() => { onHide(group.displayName); setShowMenu(false); }}>
+                Hide
+              </MenuButton>
+              <MenuButton onClick={() => { navigator.clipboard.writeText(String(group.primaryPid)); setShowMenu(false); }}>
                 Copy PID
               </MenuButton>
-              <MenuButton onClick={() => { navigator.clipboard.writeText(proc.command); setShowMenu(false); }}>
+              <MenuButton onClick={() => { navigator.clipboard.writeText(group.processes[0].command); setShowMenu(false); }}>
                 Copy Command
               </MenuButton>
             </div>
@@ -290,7 +323,7 @@ export default function ProcessCard({
 function MenuButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
     <button
-      className="w-full text-left text-xs text-surface-200/70 hover:bg-surface-800 hover:text-surface-200 px-3 py-1.5 transition"
+      className="w-full text-left text-[11px] text-surface-400 hover:bg-surface-800 hover:text-surface-200 px-3 py-1.5 transition font-mono"
       onClick={onClick}
     >
       {children}
@@ -306,38 +339,40 @@ export function EmptyPortCard({
   onDragStart,
   onDragOver,
   onDragEnd,
+  dragKey,
 }: {
   port: number;
   reservation?: { label: string; restartTemplate: string | null };
   onUnpin: (port: number) => void;
-  onDragStart: (port: number) => void;
-  onDragOver: (port: number) => void;
+  onDragStart: (key: string) => void;
+  onDragOver: (e: React.DragEvent, key: string) => void;
   onDragEnd: () => void;
+  dragKey: string;
 }) {
   return (
     <div
       draggable
-      onDragStart={() => onDragStart(port)}
+      onDragStart={() => onDragStart(dragKey)}
       onDragOver={(e) => {
         e.preventDefault();
-        onDragOver(port);
+        onDragOver(e, dragKey);
       }}
       onDragEnd={onDragEnd}
-      className="bg-surface-800/50 border border-surface-700/50 rounded-xl p-4 opacity-60"
+      className="bg-surface-800/30 border border-surface-700/30 border-dashed rounded-xl p-4 opacity-50"
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-surface-200/40">:::</span>
-          <span className="text-lg font-mono font-bold text-surface-200/40">:{port}</span>
+          <span className="text-surface-600 font-mono text-xs">:::</span>
+          <span className="text-sm font-mono font-semibold text-surface-500">:{port}</span>
         </div>
-        <div className="w-2.5 h-2.5 rounded-full bg-gray-600" />
+        <div className="w-2 h-2 rounded-full bg-neutral-700" />
       </div>
-      <div className="text-xs text-surface-200/30 mb-3">
-        {reservation ? `Reserved for: ${reservation.label}` : 'No process running'}
+      <div className="text-[11px] text-surface-600 mb-3 font-sans italic">
+        {reservation ? `Reserved for ${reservation.label}` : 'No process running'}
       </div>
       <div className="flex items-center gap-2">
         <button
-          className="text-xs bg-surface-700/50 text-surface-200/50 hover:bg-surface-200/20 px-2.5 py-1.5 rounded-lg transition"
+          className="text-[11px] bg-surface-700/40 text-surface-500 hover:text-surface-300 px-2 py-1.5 rounded-lg transition font-mono"
           onClick={() => onUnpin(port)}
         >
           Unpin

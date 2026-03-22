@@ -7,6 +7,7 @@ const WEB_PATTERNS = [
   /vite/, /next/, /webpack-dev-server/, /react-scripts/, /http-server/, /serve\b/,
   /flask/, /django/, /uvicorn/, /gunicorn/, /rails/, /puma/, /webrick/, /php/,
   /nuxt/, /gatsby/, /astro/, /remix/, /svelte/,
+  /http\.server/, /SimpleHTTPServer/, /streamlit/,
 ];
 
 const API_PATTERNS = [
@@ -26,7 +27,7 @@ const SYSTEM_PATTERNS = [
   /launchd/, /kernel_task/, /WindowServer/,
 ];
 
-function classifyProcess(name: string, command: string): ProcessType {
+function classifyProcess(name: string, command: string, workingDirectory: string): ProcessType {
   const combined = `${name} ${command}`.toLowerCase();
 
   for (const pat of DATABASE_PATTERNS) {
@@ -43,7 +44,12 @@ function classifyProcess(name: string, command: string): ProcessType {
   }
 
   // Heuristic: if it's a node process, likely web/api
-  if (/\bnode\b/.test(name)) return 'web';
+  if (/\bnode\b/i.test(name)) return 'web';
+
+  // Heuristic: Python/Ruby running from a project directory (not /) is likely a web server
+  if (/\b(python|ruby|php)\b/i.test(name) && workingDirectory && workingDirectory !== '/') {
+    return 'web';
+  }
 
   return 'system';
 }
@@ -221,7 +227,7 @@ export function discoverProcesses(): PortProcess[] {
     const workingDirectory = getWorkingDirectory(primary.pid);
     const command = details.command || primary.name;
 
-    const type = classifyProcess(primary.name, command);
+    const type = classifyProcess(primary.name, command, workingDirectory);
     const isPortctlProcess = port === dashboardPort && /portctl|node/.test(primary.name);
     const isSysProcess = isSystemProcess(primary.name, command);
 
