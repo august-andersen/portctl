@@ -249,7 +249,10 @@ export default function App() {
   if (loading && processes.length === 0) {
     return (
       <div className="dark bg-surface-950 min-h-screen flex items-center justify-center">
-        <div className="text-surface-500 font-sans">Loading portctl...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+          <span className="text-surface-500 text-sm font-sans">Discovering processes…</span>
+        </div>
       </div>
     );
   }
@@ -274,21 +277,18 @@ export default function App() {
       />
 
       {discoveryFailures >= 3 && (
-        <div className="bg-red-600/10 text-red-400/80 text-xs px-6 py-2 text-center font-mono border-b border-red-600/10">
-          Process discovery is failing. Check if lsof is available.
+        <div className="bg-red-500/8 text-red-400/80 text-xs px-6 py-2 text-center font-mono border-b border-red-500/10">
+          Process discovery is failing — check if lsof is available.
         </div>
       )}
 
-      <main className="p-6 max-w-[1800px] mx-auto">
+      <main className="px-6 py-5 max-w-[1800px] mx-auto">
         {viewMode === 'card' ? (
           <>
             {/* Pinned section */}
             {(orderedPinned.length > 0 || emptyPinnedPorts.length > 0) && (
-              <section className="mb-8">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="section-label text-surface-500">Pinned</span>
-                  <div className="flex-1 h-px bg-surface-700/30" />
-                </div>
+              <section className="mb-7">
+                <SectionHeader label="Pinned" />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {orderedPinned.map((g) => renderGroupCard(g, 'pinned'))}
                   {emptyPinnedPorts.map((port) => {
@@ -313,13 +313,8 @@ export default function App() {
 
             {/* Main processes */}
             {orderedMain.length > 0 && (
-              <section className="mb-8">
-                {orderedPinned.length > 0 && (
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="section-label text-surface-500">Processes</span>
-                    <div className="flex-1 h-px bg-surface-700/30" />
-                  </div>
-                )}
+              <section className="mb-7">
+                {orderedPinned.length > 0 && <SectionHeader label="Processes" />}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {orderedMain.map((g) => renderGroupCard(g, 'main'))}
                 </div>
@@ -328,12 +323,8 @@ export default function App() {
 
             {/* System processes (toggled) */}
             {orderedSystem.length > 0 && (
-              <section className="mb-8">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="section-label text-surface-500">System</span>
-                  <span className="text-[10px] text-surface-600 font-mono">{systemGroups.length}</span>
-                  <div className="flex-1 h-px bg-surface-700/30" />
-                </div>
+              <section className="mb-7">
+                <SectionHeader label="System" count={systemGroups.length} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {orderedSystem.map((g) => renderGroupCard(g, 'system'))}
                 </div>
@@ -342,23 +333,23 @@ export default function App() {
 
             {/* Hidden section (toggled) */}
             {showHidden && hiddenGroups.length > 0 && (
-              <section className="mb-8">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="section-label text-surface-500">Hidden</span>
-                  <div className="flex-1 h-px bg-surface-700/30" />
-                </div>
+              <section className="mb-7">
+                <SectionHeader label="Hidden" count={hiddenGroups.length} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {hiddenGroups.map((g) => (
-                    <div key={g.displayName} className="bg-surface-800/30 border border-surface-700/30 rounded-xl p-4 opacity-60">
+                    <div
+                      key={g.displayName}
+                      className="bg-surface-800/20 border border-white/[0.05] rounded-xl p-4 opacity-50 hover:opacity-70 transition-opacity"
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-surface-500">
+                          <span className="text-[11px] font-mono text-surface-500">
                             {g.ports.map((p) => `:${p}`).join(' ')}
                           </span>
                           <span className="text-sm font-sans text-surface-400">{g.displayName}</span>
                         </div>
                         <button
-                          className="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono"
+                          className="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono transition"
                           onClick={() => handleUnhide(g.displayName)}
                         >
                           Unhide
@@ -371,9 +362,15 @@ export default function App() {
             )}
 
             {totalVisible === 0 && (
-              <div className="text-center text-surface-600 py-20">
-                <p className="text-lg mb-2 font-sans">No processes found</p>
-                <p className="text-xs font-mono">Start a dev server and it will appear here automatically.</p>
+              <div className="text-center py-24">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-surface-800 border border-white/[0.06] mb-4">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-surface-500">
+                    <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M6.5 10h7M10 6.5v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <p className="text-surface-400 text-sm font-sans font-medium mb-1">No processes found</p>
+                <p className="text-surface-600 text-xs font-mono">Start a dev server and it will appear here automatically.</p>
               </div>
             )}
           </>
@@ -428,6 +425,20 @@ export default function App() {
           onClose={() => setTagEditGroup(null)}
         />
       )}
+    </div>
+  );
+}
+
+function SectionHeader({ label, count }: { label: string; count?: number }) {
+  return (
+    <div className="flex items-center gap-3 mb-3">
+      <span className="section-label text-surface-500">{label}</span>
+      {count !== undefined && (
+        <span className="text-[10px] text-surface-600 font-mono bg-surface-800/60 px-1.5 py-0.5 rounded-md border border-white/[0.04]">
+          {count}
+        </span>
+      )}
+      <div className="flex-1 h-px bg-gradient-to-r from-surface-700/30 to-transparent" />
     </div>
   );
 }

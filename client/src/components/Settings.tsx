@@ -14,6 +14,14 @@ interface SettingsProps {
 
 type SettingsTab = 'general' | 'reservations' | 'blocked' | 'pinned' | 'about';
 
+const tabs: Array<{ id: SettingsTab; label: string; icon: string }> = [
+  { id: 'general',      label: 'General',      icon: '⚙' },
+  { id: 'reservations', label: 'Reservations',  icon: '◈' },
+  { id: 'blocked',      label: 'Blocked Ports', icon: '⊘' },
+  { id: 'pinned',       label: 'Pinned Ports',  icon: '◆' },
+  { id: 'about',        label: 'About',         icon: 'ℹ' },
+];
+
 export default function Settings({
   config,
   onClose,
@@ -31,138 +39,129 @@ export default function Settings({
     if (e.key === 'Escape') onClose();
   };
 
-  const tabs: Array<{ id: SettingsTab; label: string }> = [
-    { id: 'general', label: 'General' },
-    { id: 'reservations', label: 'Reservations' },
-    { id: 'blocked', label: 'Blocked Ports' },
-    { id: 'pinned', label: 'Pinned Ports' },
-    { id: 'about', label: 'About' },
-  ];
-
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-8"
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
       onKeyDown={handleKeyDown}
     >
-      <div className="bg-surface-900 border border-surface-700 rounded-xl shadow-2xl flex flex-col" style={{ width: '70vw', maxWidth: '800px', height: '70vh' }}>
+      <div
+        className="bg-surface-900 border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        style={{ width: '70vw', maxWidth: '780px', height: '68vh' }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-700">
-          <h2 className="text-lg font-bold text-surface-200">Settings</h2>
-          <button className="text-surface-200/50 hover:text-surface-200 text-xl" onClick={onClose}>
-            &times;
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+          <h2 className="text-base font-semibold text-surface-100 font-sans">Settings</h2>
+          <button
+            className="text-surface-500 hover:text-surface-200 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] transition text-lg leading-none"
+            onClick={onClose}
+          >
+            ×
           </button>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar */}
-          <div className="w-48 border-r border-surface-700 py-2">
+          <nav className="w-44 border-r border-white/[0.06] py-2 shrink-0">
             {tabs.map((t) => (
               <button
                 key={t.id}
-                className={`w-full text-left text-sm px-4 py-2 transition ${
+                className={`w-full text-left flex items-center gap-2.5 text-[13px] px-4 py-2.5 transition font-sans ${
                   tab === t.id
-                    ? 'bg-blue-600/20 text-blue-400 border-r-2 border-blue-400'
-                    : 'text-surface-200/50 hover:text-surface-200 hover:bg-surface-800'
+                    ? 'bg-indigo-500/12 text-indigo-300 border-r-2 border-indigo-400'
+                    : 'text-surface-400 hover:text-surface-200 hover:bg-white/[0.03]'
                 }`}
                 onClick={() => setTab(t.id)}
               >
+                <span className="text-base leading-none opacity-70">{t.icon}</span>
                 {t.label}
               </button>
             ))}
-          </div>
+          </nav>
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
             {tab === 'general' && (
-              <div className="space-y-4">
+              <div className="space-y-1">
                 <SettingRow label="Dashboard Port" description="Port for the portctl web UI">
-                  <input
+                  <FieldInput
                     type="number"
                     value={config.settings.dashboardPort}
-                    onChange={(e) => onUpdateSettings({ dashboardPort: parseInt(e.target.value, 10) })}
-                    className="bg-surface-800 border border-surface-700 text-surface-200 text-sm px-3 py-1.5 rounded w-24"
+                    onChange={(v) => onUpdateSettings({ dashboardPort: parseInt(v, 10) })}
+                    width="w-24"
                   />
                 </SettingRow>
                 <SettingRow label="Polling Interval" description="How often to check for processes (ms)">
-                  <input
+                  <FieldInput
                     type="number"
                     value={config.settings.pollingInterval}
-                    onChange={(e) => onUpdateSettings({ pollingInterval: parseInt(e.target.value, 10) })}
-                    className="bg-surface-800 border border-surface-700 text-surface-200 text-sm px-3 py-1.5 rounded w-24"
-                    step={100}
-                    min={500}
+                    onChange={(v) => onUpdateSettings({ pollingInterval: parseInt(v, 10) })}
+                    step="100"
+                    min="500"
+                    width="w-24"
                   />
                 </SettingRow>
-                <SettingRow label="Default View" description="Initial view mode">
-                  <select
+                <SettingRow label="Default View" description="Initial view mode when opening portctl">
+                  <FieldSelect
                     value={config.settings.defaultView}
-                    onChange={(e) => onUpdateSettings({ defaultView: e.target.value as 'card' | 'table' })}
-                    className="bg-surface-800 border border-surface-700 text-surface-200 text-sm px-3 py-1.5 rounded"
-                  >
-                    <option value="card">Card</option>
-                    <option value="table">Table</option>
-                  </select>
+                    onChange={(v) => onUpdateSettings({ defaultView: v as 'card' | 'table' })}
+                    options={[{ value: 'card', label: 'Cards' }, { value: 'table', label: 'Table' }]}
+                  />
                 </SettingRow>
                 <SettingRow label="Theme" description="Dashboard color scheme">
-                  <select
+                  <FieldSelect
                     value={config.settings.theme}
-                    onChange={(e) => onUpdateSettings({ theme: e.target.value as 'dark' | 'light' })}
-                    className="bg-surface-800 border border-surface-700 text-surface-200 text-sm px-3 py-1.5 rounded"
-                  >
-                    <option value="dark">Dark</option>
-                    <option value="light">Light</option>
-                  </select>
+                    onChange={(v) => onUpdateSettings({ theme: v as 'dark' | 'light' })}
+                    options={[{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]}
+                  />
                 </SettingRow>
-                <SettingRow label="Card Click" description="What happens when you click a card">
-                  <select
+                <SettingRow label="Card Click" description="Action when clicking a process card">
+                  <FieldSelect
                     value={config.settings.cardClickBehavior}
-                    onChange={(e) => onUpdateSettings({ cardClickBehavior: e.target.value as 'openBrowser' | 'openLogs' })}
-                    className="bg-surface-800 border border-surface-700 text-surface-200 text-sm px-3 py-1.5 rounded"
-                  >
-                    <option value="openBrowser">Open in Browser</option>
-                    <option value="openLogs">View Logs</option>
-                  </select>
+                    onChange={(v) => onUpdateSettings({ cardClickBehavior: v as 'openBrowser' | 'openLogs' })}
+                    options={[
+                      { value: 'openBrowser', label: 'Open in Browser' },
+                      { value: 'openLogs',    label: 'View Logs' },
+                    ]}
+                  />
                 </SettingRow>
-                <SettingRow label="Log Buffer" description="Max lines per process">
-                  <input
+                <SettingRow label="Log Buffer" description="Maximum log lines stored per process">
+                  <FieldInput
                     type="number"
                     value={config.settings.logBufferSize}
-                    onChange={(e) => onUpdateSettings({ logBufferSize: parseInt(e.target.value, 10) })}
-                    className="bg-surface-800 border border-surface-700 text-surface-200 text-sm px-3 py-1.5 rounded w-24"
-                    step={1000}
-                    min={100}
+                    onChange={(v) => onUpdateSettings({ logBufferSize: parseInt(v, 10) })}
+                    step="1000"
+                    min="100"
+                    width="w-24"
                   />
                 </SettingRow>
               </div>
             )}
 
             {tab === 'reservations' && (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {config.reservations.length === 0 ? (
-                  <p className="text-surface-200/30 text-sm">
-                    No port reservations. Use the "Reserve Port" option on a process card to create one.
-                  </p>
+                  <EmptyState message='No reservations yet. Use "Reserve Port" on any process card to create one.' />
                 ) : (
                   config.reservations.map((r) => (
                     <div
                       key={r.port}
-                      className="bg-surface-800 border border-surface-700 rounded-lg p-3 flex items-center justify-between"
+                      className="bg-surface-800/60 border border-white/[0.06] rounded-xl p-3.5 flex items-center justify-between"
                     >
                       <div>
-                        <div className="text-sm font-medium text-surface-200">
-                          Port {r.port} — {r.label || 'Unnamed'}
+                        <div className="text-sm font-semibold text-surface-100 font-sans">
+                          :{r.port}
+                          <span className="font-normal text-surface-400 ml-2">{r.label || 'Unnamed'}</span>
                         </div>
-                        <div className="text-xs text-surface-200/50 mt-0.5">
+                        <div className="text-[11px] text-surface-500 mt-0.5 font-mono">
                           {r.matcher.type}: {r.matcher.value}
                         </div>
                         {r.restartTemplate && (
-                          <div className="text-xs text-surface-200/30 mt-0.5 font-mono">
-                            {r.restartTemplate}
-                          </div>
+                          <div className="text-[11px] text-surface-600 mt-0.5 font-mono">{r.restartTemplate}</div>
                         )}
                       </div>
                       <button
-                        className="text-xs text-red-400 hover:text-red-300 px-2 py-1"
+                        className="text-[11px] text-red-400/70 hover:text-red-400 font-mono px-2 py-1 rounded-lg hover:bg-red-500/10 transition"
                         onClick={() => onRemoveReservation(r.port)}
                       >
                         Remove
@@ -174,19 +173,28 @@ export default function Settings({
             )}
 
             {tab === 'blocked' && (
-              <div className="space-y-3">
-                <div className="flex gap-2">
+              <div className="space-y-2">
+                <div className="flex gap-2 mb-4">
                   <input
                     type="number"
                     value={newBlockedPort}
                     onChange={(e) => setNewBlockedPort(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const port = parseInt(newBlockedPort, 10);
+                        if (port >= 1 && port <= 65535) {
+                          onAddBlockedPort(port);
+                          setNewBlockedPort('');
+                        }
+                      }
+                    }}
                     placeholder="Port number"
-                    className="bg-surface-800 border border-surface-700 text-surface-200 text-sm px-3 py-1.5 rounded w-32"
+                    className="bg-surface-800 border border-white/[0.08] text-surface-200 text-sm px-3 py-2 rounded-lg w-36 font-mono focus:outline-none focus:border-indigo-500/50"
                     min={1}
                     max={65535}
                   />
                   <button
-                    className="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded"
+                    className="text-[12px] bg-surface-700 hover:bg-surface-600 text-surface-200 px-4 py-2 rounded-lg font-mono transition border border-white/[0.06]"
                     onClick={() => {
                       const port = parseInt(newBlockedPort, 10);
                       if (port >= 1 && port <= 65535) {
@@ -198,63 +206,60 @@ export default function Settings({
                     Block Port
                   </button>
                 </div>
+                {config.blockedPorts.length === 0 && <EmptyState message="No blocked ports." />}
                 {config.blockedPorts.map((port) => (
                   <div
                     key={port}
-                    className="bg-surface-800 border border-surface-700 rounded-lg p-3 flex items-center justify-between"
+                    className="bg-surface-800/60 border border-white/[0.06] rounded-xl p-3 flex items-center justify-between"
                   >
-                    <span className="text-sm font-mono text-surface-200">Port {port}</span>
+                    <span className="text-sm font-mono text-surface-200">:{port}</span>
                     <button
-                      className="text-xs text-red-400 hover:text-red-300"
+                      className="text-[11px] text-red-400/70 hover:text-red-400 font-mono px-2 py-1 rounded-lg hover:bg-red-500/10 transition"
                       onClick={() => onRemoveBlockedPort(port)}
                     >
                       Unblock
                     </button>
                   </div>
                 ))}
-                {config.blockedPorts.length === 0 && (
-                  <p className="text-surface-200/30 text-sm">No blocked ports</p>
-                )}
               </div>
             )}
 
             {tab === 'pinned' && (
-              <div className="space-y-3">
+              <div className="space-y-2">
+                {config.pinnedPorts.length === 0 && <EmptyState message="No pinned ports. Pin process cards to keep them at the top." />}
                 {config.pinnedPorts.map((port) => (
                   <div
                     key={port}
-                    className="bg-surface-800 border border-surface-700 rounded-lg p-3 flex items-center justify-between"
+                    className="bg-surface-800/60 border border-white/[0.06] rounded-xl p-3 flex items-center justify-between"
                   >
-                    <span className="text-sm font-mono text-surface-200">Port {port}</span>
+                    <span className="text-sm font-mono text-surface-200">:{port}</span>
                     <button
-                      className="text-xs text-red-400 hover:text-red-300"
+                      className="text-[11px] text-amber-400/70 hover:text-amber-400 font-mono px-2 py-1 rounded-lg hover:bg-amber-500/10 transition"
                       onClick={() => onTogglePin(port)}
                     >
                       Unpin
                     </button>
                   </div>
                 ))}
-                {config.pinnedPorts.length === 0 && (
-                  <p className="text-surface-200/30 text-sm">No pinned ports</p>
-                )}
               </div>
             )}
 
             {tab === 'about' && (
-              <div className="space-y-3">
-                <p className="text-sm text-surface-200">
-                  <strong>portctl</strong> v1.0.0
-                </p>
-                <p className="text-xs text-surface-200/50">
-                  A local macOS dashboard for managing processes listening on network ports.
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-surface-100 font-sans">portctl</h3>
+                  <p className="text-xs text-surface-500 mt-1 font-mono">v1.0.0</p>
+                </div>
+                <p className="text-sm text-surface-400 font-sans leading-relaxed">
+                  A local macOS dashboard for discovering and managing processes listening on network ports.
                 </p>
                 <a
                   href="https://github.com/august-andersen/portctl"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-blue-400 hover:text-blue-300"
+                  className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition font-mono"
                 >
-                  GitHub Repository
+                  GitHub Repository →
                 </a>
               </div>
             )}
@@ -275,12 +280,67 @@ function SettingRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between py-3 border-b border-white/[0.04]">
       <div>
-        <div className="text-sm text-surface-200">{label}</div>
-        <div className="text-xs text-surface-200/40">{description}</div>
+        <div className="text-sm font-medium text-surface-200 font-sans">{label}</div>
+        <div className="text-[11px] text-surface-500 mt-0.5 font-sans">{description}</div>
       </div>
       {children}
     </div>
+  );
+}
+
+function FieldInput({
+  type,
+  value,
+  onChange,
+  step,
+  min,
+  width = 'w-32',
+}: {
+  type: string;
+  value: string | number;
+  onChange: (v: string) => void;
+  step?: string;
+  min?: string;
+  width?: string;
+}) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      step={step}
+      min={min}
+      className={`${width} bg-surface-800 border border-white/[0.08] text-surface-200 text-sm px-3 py-1.5 rounded-lg font-mono focus:outline-none focus:border-indigo-500/50 transition-colors`}
+    />
+  );
+}
+
+function FieldSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="bg-surface-800 border border-white/[0.08] text-surface-200 text-sm px-3 py-1.5 rounded-lg font-sans focus:outline-none focus:border-indigo-500/50 transition-colors"
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <p className="text-sm text-surface-600 italic font-sans py-4">{message}</p>
   );
 }

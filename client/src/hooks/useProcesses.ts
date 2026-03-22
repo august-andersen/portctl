@@ -45,6 +45,7 @@ export function useProcesses() {
           apiFetch<{ toasts: Toast[]; discoveryFailures: number }>('/api/toasts'),
         ]);
 
+        setLoading(false);
         if (!mounted) return;
         setProcesses(procData.processes);
         setDiscoveryFailures(toastData.discoveryFailures);
@@ -52,10 +53,8 @@ export function useProcesses() {
         for (const t of toastData.toasts) {
           addToast(t);
         }
-
-        setLoading(false);
       } catch {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
     };
 

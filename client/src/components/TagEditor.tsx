@@ -19,9 +19,7 @@ export default function TagEditor({ process: proc, onSave, onClose }: TagEditorP
     }
   };
 
-  const removeTag = (tag: string) => {
-    setTags(tags.filter((t) => t !== tag));
-  };
+  const removeTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
 
   const handleSave = () => {
     onSave(`port:${proc.port}`, tags);
@@ -29,41 +27,59 @@ export default function TagEditor({ process: proc, onSave, onClose }: TagEditorP
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-8">
-      <div className="bg-surface-900 border border-surface-700 rounded-xl shadow-2xl p-6 w-full max-w-sm">
-        <h3 className="text-lg font-bold text-surface-200 mb-4">
-          Edit Tags — :{proc.port}
-        </h3>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+    >
+      <div className="bg-surface-900 border border-white/[0.08] rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="text-base font-semibold text-surface-100 font-sans">Edit Tags</h3>
+            <p className="text-[11px] text-surface-500 mt-0.5 font-mono">:{proc.port} · {proc.name}</p>
+          </div>
+          <button
+            className="text-surface-500 hover:text-surface-200 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] transition text-lg"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
 
-        <div className="flex flex-wrap gap-1.5 mb-4 min-h-[32px]">
+        {/* Current tags */}
+        <div className="min-h-[40px] flex flex-wrap gap-1.5 mb-4 p-3 bg-surface-800/40 rounded-xl border border-white/[0.05]">
+          {tags.length === 0 && (
+            <span className="text-[11px] text-surface-600 italic font-sans self-center">No tags</span>
+          )}
           {tags.map((tag) => (
             <span
               key={tag}
-              className="bg-surface-700 text-surface-200/70 text-xs px-2.5 py-1 rounded-full flex items-center gap-1"
+              className="flex items-center gap-1 bg-surface-700/70 text-surface-300 text-[11px] px-2.5 py-1 rounded-full font-mono border border-white/[0.06]"
             >
               {tag}
               <button
-                className="text-surface-200/40 hover:text-red-400 ml-0.5"
+                className="text-surface-500 hover:text-red-400 transition ml-0.5 text-xs leading-none"
                 onClick={() => removeTag(tag)}
               >
-                &times;
+                ×
               </button>
             </span>
           ))}
         </div>
 
-        <div className="flex gap-2 mb-4">
+        {/* Add tag */}
+        <div className="flex gap-2 mb-5">
           <input
             type="text"
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addTag()}
-            placeholder="Add tag..."
-            className="flex-1 bg-surface-800 border border-surface-700 text-surface-200 text-sm px-3 py-2 rounded focus:outline-none focus:border-blue-500 placeholder:text-surface-200/30"
+            placeholder="Add tag…"
+            className="flex-1 bg-surface-800 border border-white/[0.08] text-surface-200 text-sm px-3 py-2 rounded-lg font-mono focus:outline-none focus:border-indigo-500/50 transition-colors placeholder:text-surface-600"
             autoFocus
           />
           <button
-            className="text-sm bg-surface-700 text-surface-200 hover:bg-surface-200/20 px-3 py-2 rounded"
+            className="text-sm font-sans bg-surface-700 text-surface-200 hover:bg-surface-600 px-3 py-2 rounded-lg border border-white/[0.06] transition"
             onClick={addTag}
           >
             Add
@@ -72,16 +88,16 @@ export default function TagEditor({ process: proc, onSave, onClose }: TagEditorP
 
         <div className="flex gap-2 justify-end">
           <button
-            className="text-sm bg-surface-700 text-surface-200 hover:bg-surface-200/20 px-4 py-2 rounded-lg"
+            className="text-sm font-sans bg-surface-800 text-surface-300 hover:bg-surface-700 px-4 py-2 rounded-xl border border-white/[0.07] transition"
             onClick={onClose}
           >
             Cancel
           </button>
           <button
-            className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+            className="text-sm font-sans bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl transition shadow-lg shadow-indigo-500/20"
             onClick={handleSave}
           >
-            Save
+            Save Tags
           </button>
         </div>
       </div>

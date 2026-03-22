@@ -56,72 +56,104 @@ export default function LogViewer({ process: proc, getLogs, onClose }: LogViewer
     ? logs.filter((l) => l.text.toLowerCase().includes(search.toLowerCase()))
     : logs;
 
+  const stdoutCount = filteredLogs.filter((l) => l.stream === 'stdout').length;
+  const stderrCount = filteredLogs.filter((l) => l.stream === 'stderr').length;
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-8">
-      <div className="bg-surface-900 border border-surface-700 rounded-xl shadow-2xl flex flex-col" style={{ width: '70vw', maxWidth: '900px', height: '70vh' }}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+    >
+      <div
+        className="bg-surface-900 border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        style={{ width: '72vw', maxWidth: '920px', height: '72vh' }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06] bg-surface-950/40 shrink-0">
           <div className="flex items-center gap-3">
-            <span className="font-medium text-surface-200">{proc.name}</span>
-            <span className="text-sm text-surface-200/50 font-mono">:{proc.port}</span>
-            <span className="text-xs text-surface-200/30">PID {proc.pid}</span>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="font-semibold text-surface-100 text-sm font-sans">{proc.name}</span>
+            </div>
+            <span className="text-sm text-indigo-300 font-mono">:{proc.port}</span>
+            <span className="text-[11px] text-surface-500 font-mono">PID {proc.pid}</span>
+            {stderrCount > 0 && (
+              <span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded-md font-mono border border-red-500/20">
+                {stderrCount} errors
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1 text-xs text-surface-200/50">
+            <label className="flex items-center gap-1.5 text-[11px] text-surface-500 cursor-pointer hover:text-surface-300 transition select-none">
               <input
                 type="checkbox"
                 checked={autoScroll}
                 onChange={(e) => setAutoScroll(e.target.checked)}
-                className="rounded"
+                className="rounded accent-indigo-500"
               />
               Auto-scroll
             </label>
             <button
-              className="text-xs bg-surface-800 text-surface-200/50 hover:text-surface-200 px-2 py-1 rounded"
+              className="text-[11px] font-mono text-surface-500 hover:text-surface-200 bg-surface-800 hover:bg-surface-700 px-2.5 py-1 rounded-lg transition border border-white/[0.06]"
               onClick={() => setLogs([])}
             >
               Clear
             </button>
             <button
-              className="text-surface-200/50 hover:text-surface-200 text-xl px-2"
+              className="text-surface-500 hover:text-surface-200 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] transition text-lg"
               onClick={onClose}
             >
-              &times;
+              ×
             </button>
           </div>
         </div>
 
-        {/* Search */}
-        <div className="px-4 py-2 border-b border-surface-700">
+        {/* Search bar */}
+        <div className="px-5 py-2 border-b border-white/[0.04] bg-surface-950/20 shrink-0">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search logs..."
-            className="w-full bg-surface-800 border border-surface-700 text-surface-200 text-xs px-3 py-1.5 rounded focus:outline-none focus:border-blue-500 placeholder:text-surface-200/30"
+            placeholder="Filter logs…"
+            className="w-full bg-transparent text-surface-300 text-[11px] font-mono focus:outline-none placeholder:text-surface-600"
           />
         </div>
 
         {/* Log content */}
-        <div ref={containerRef} className="flex-1 overflow-y-auto p-4 log-viewer">
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-y-auto p-5 log-viewer bg-surface-950/30"
+        >
           {!available && message && (
-            <div className="text-surface-200/30 text-center py-8">{message}</div>
+            <div className="text-surface-500 text-center py-12 italic font-sans text-sm">{message}</div>
           )}
+
+          {filteredLogs.length === 0 && available && (
+            <div className="text-surface-600 text-center py-12 font-sans text-sm">No output yet</div>
+          )}
+
           {filteredLogs.map((log, i) => (
             <div
               key={i}
-              className={`${log.stream === 'stderr' ? 'text-red-400' : 'text-surface-200/80'}`}
+              className={`flex gap-3 leading-relaxed ${log.stream === 'stderr' ? 'text-red-400' : 'text-surface-300'}`}
             >
-              <span className="text-surface-200/20 mr-2 select-none">
+              <span className="text-surface-700 shrink-0 select-none text-[10px] pt-px tabular-nums w-18">
                 {new Date(log.timestamp).toLocaleTimeString()}
               </span>
-              {log.text}
+              <span className="flex-1 break-all">{log.text}</span>
             </div>
           ))}
-          {filteredLogs.length === 0 && available && (
-            <div className="text-surface-200/30 text-center py-8">No log output yet</div>
-          )}
+
           <div ref={logEndRef} />
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-2 border-t border-white/[0.04] bg-surface-950/30 shrink-0">
+          <span className="text-[10px] text-surface-600 font-mono">
+            {filteredLogs.length} lines
+            {search && ` · filtered from ${logs.length}`}
+            {stderrCount > 0 && ` · ${stderrCount} stderr`}
+          </span>
         </div>
       </div>
     </div>

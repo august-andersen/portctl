@@ -6,57 +6,100 @@
   --toast-duration: 4000ms;
 }
 
-/* Dark mode base */
+/* ─── Base ────────────────────────────────────────────── */
+
 .dark {
   background-color: #050506;
   color: #d4d4d8;
 }
 
-/* Light mode base */
 .light-mode {
-  background-color: #fafafa;
+  background-color: #f0f0f2;
   color: #1c1c1e;
 }
 
-/* Custom scrollbar for dark mode */
-.dark ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ─── Scrollbar ────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
 }
-.dark ::-webkit-scrollbar-track {
-  background: #0c0c0e;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
-.dark ::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 3px;
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
 }
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.14);
 }
 
-/* Monospace log viewer */
+/* ─── Glass ────────────────────────────────────────────── */
+
+.glass-header {
+  background: rgba(5, 5, 6, 0.8);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+
+/* ─── Log viewer ───────────────────────────────────────── */
+
 .log-viewer {
   font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-all;
 }
 
-/* Card drag styles */
+/* ─── Status dot animations ────────────────────────────── */
+
+@keyframes pulse-running {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5);
+  }
+  60% {
+    box-shadow: 0 0 0 5px rgba(52, 211, 153, 0);
+  }
+}
+
+@keyframes pulse-suspended {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.5);
+  }
+  60% {
+    box-shadow: 0 0 0 5px rgba(251, 191, 36, 0);
+  }
+}
+
+.status-dot-running {
+  animation: pulse-running 2.5s ease-in-out infinite;
+}
+
+.status-dot-suspended {
+  animation: pulse-suspended 2.5s ease-in-out infinite;
+}
+
+/* ─── Drag & drop ─────────────────────────────────────── */
+
 .dragging {
-  opacity: 0.4;
-  transform: scale(1.03);
+  opacity: 0.3;
+  transform: scale(0.97);
+  transition: opacity 0.15s, transform 0.15s;
 }
 
 .drag-over {
-  outline: 1px solid rgba(99, 102, 241, 0.5) !important;
+  outline: 1.5px solid rgba(99, 102, 241, 0.55) !important;
+  outline-offset: 1px;
+  border-radius: 12px;
 }
 
-/* Toast animation */
+/* ─── Toast ───────────────────────────────────────────── */
+
 @keyframes slide-in {
   from {
-    transform: translateX(100%);
+    transform: translateX(calc(100% + 20px));
     opacity: 0;
   }
   to {
@@ -66,20 +109,44 @@
 }
 
 .animate-slide-in {
-  animation: slide-in 0.2s ease-out;
+  animation: slide-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Favicon image */
+/* ─── Favicon ─────────────────────────────────────────── */
+
 .favicon-img {
   width: 14px;
   height: 14px;
-  border-radius: 2px;
+  border-radius: 3px;
   object-fit: contain;
 }
 
-/* Section divider */
+/* ─── Section label ───────────────────────────────────── */
+
 .section-label {
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* ─── Card appear ─────────────────────────────────────── */
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Input / Select base ─────────────────────────────── */
+
+.field {
+  @apply bg-surface-800 border border-white/[0.08] text-surface-200 rounded-lg
+    focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/20
+    transition-colors placeholder:text-surface-500;
 }
